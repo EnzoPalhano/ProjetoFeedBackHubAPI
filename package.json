@@ -1,0 +1,40 @@
+{
+  "name": "feedback-hub-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Foundation for a community feedback API built with Fastify, Prisma and TypeScript.",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "tsup src/server.ts --watch --format cjs --target node20 --out-dir dist --onSuccess \"node dist/server.js\"",
+    "build": "tsup src/server.ts --format cjs --target node20 --out-dir dist --clean",
+    "start": "node dist/server.js",
+    "test": "prisma db push --skip-generate && vitest run",
+    "test:watch": "prisma db push --skip-generate && vitest",
+    "lint": "eslint . --ext .ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/jwt": "^9.0.1",
+    "@prisma/client": "^6.8.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.2.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.13.14",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.1",
+    "prettier": "^3.5.3",
+    "prisma": "^6.8.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}
