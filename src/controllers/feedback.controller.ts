@@ -42,12 +42,15 @@ export function feedbackController(service: FeedbackService) {
       reply: FastifyReply
     ): Promise<FastifyReply> => {
       const { id } = request.params as { id: string };
-      const payload = updateFeedbackSchema.parse(request.body);
-      const feedback = await service.updateFeedback(id, {
-        ...payload,
+      const parsed = updateFeedbackSchema.parse(request.body);
+      const payload: import('../services/feedback.service').UpdateFeedbackInput = {
         requesterId: request.user.sub,
         requesterRole: request.user.role
-      });
+      };
+      if (parsed.title !== undefined) payload.title = parsed.title;
+      if (parsed.description !== undefined) payload.description = parsed.description;
+      if (parsed.status !== undefined) payload.status = parsed.status;
+      const feedback = await service.updateFeedback(id, payload);
       return reply.status(200).send(feedback);
     },
 

@@ -3,6 +3,7 @@ import { compare, hash } from 'bcryptjs';
 import { UserRole } from '../enums/user-role';
 import {
   type PublicUserListItem,
+  type UpdateUserRepositoryInput,
   type UserRepository,
   type UserWithoutPassword
 } from '../repositories/user-repository';
@@ -138,11 +139,11 @@ export class UserService {
       passwordHash = await hash(data.password, 12);
     }
 
-    const updated = await this.userRepository.updateUser(id, {
-      name: data.name,
-      email: data.email,
-      passwordHash
-    });
+    const updateData: UpdateUserRepositoryInput = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (passwordHash !== undefined) updateData.passwordHash = passwordHash;
+    const updated = await this.userRepository.updateUser(id, updateData);
 
     return {
       id: updated.id,

@@ -33,7 +33,7 @@ export class PrismaFeedbackRepository implements FeedbackRepository {
 
   async listFeedbacks(status?: FeedbackStatus): Promise<FeedbackRecord[]> {
     const feedbacks = await prisma.feedback.findMany({
-      where: status ? { status } : undefined,
+      ...(status !== undefined ? { where: { status } } : {}),
       orderBy: { createdAt: 'desc' }
     });
     return feedbacks.map(toFeedbackRecord);

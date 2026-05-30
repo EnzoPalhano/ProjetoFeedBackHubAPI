@@ -54,11 +54,11 @@ export class FeedbackService {
       throw new ForbiddenError('Apenas administradores podem alterar o status');
     }
 
-    return this.feedbackRepository.updateFeedback(id, {
-      title: data.title,
-      description: data.description,
-      status: data.status
-    });
+    const updateData: import('../repositories/feedback-repository').UpdateFeedbackRepositoryInput = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.status !== undefined) updateData.status = data.status;
+    return this.feedbackRepository.updateFeedback(id, updateData);
   }
 
   async deleteFeedback(

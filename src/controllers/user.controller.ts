@@ -26,14 +26,7 @@ export function userController(service: UserService) {
     ): Promise<FastifyReply> => {
       const payload: LoginSchemaInput = loginSchema.parse(request.body);
       const user = await service.login(payload);
-      const token = request.server.jwt.sign(
-        {
-          role: user.role
-        },
-        {
-          sub: user.id
-        }
-      );
+      const token = request.server.jwt.sign({ sub: user.id, role: user.role });
 
       return reply.status(200).send({ token });
     },
@@ -60,7 +53,11 @@ export function userController(service: UserService) {
       reply: FastifyReply
     ): Promise<FastifyReply> => {
       const { id } = request.params as { id: string };
-      const payload = updateUserSchema.parse(request.body);
+      const parsed = updateUserSchema.parse(request.body);
+      const payload: import('../services/user.service').UpdateUserInput = {};
+      if (parsed.name !== undefined) payload.name = parsed.name;
+      if (parsed.email !== undefined) payload.email = parsed.email;
+      if (parsed.password !== undefined) payload.password = parsed.password;
       const user = await service.updateUser(id, payload, request.user.sub, request.user.role);
       return reply.status(200).send(user);
     },

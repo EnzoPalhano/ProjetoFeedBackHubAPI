@@ -40,14 +40,11 @@ const unauthorizedErrorCodes = new Set([
 ]);
 
 // Funcao auxiliar para descobrir se o erro recebido foi causado por autenticacao invalida.
-function isUnauthorizedFastifyJwtError(error: FastifyError): boolean {
-  // Alguns erros ja chegam com o status HTTP correto.
-  if (error.statusCode === 401) {
-    return true;
-  }
-
-  // Nos outros casos, verificamos os codigos internos emitidos pelo plugin JWT.
-  return typeof error.code === 'string' && unauthorizedErrorCodes.has(error.code);
+function isUnauthorizedFastifyJwtError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as FastifyError;
+  if (e.statusCode === 401) return true;
+  return typeof e.code === 'string' && unauthorizedErrorCodes.has(e.code);
 }
 
 // Esta factory monta e devolve a instancia principal da aplicacao Fastify.
