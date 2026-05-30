@@ -1,38 +1,11 @@
-# Feedback Hub API Foundation
+# Feedback Hub API
 
-Base técnica de uma API REST para uma plataforma de comunidade/feedback. Este repositório implementa somente o domínio de usuários e já deixa a arquitetura pronta para receber `posts`, `comments` e `votes` sem acoplamento indevido entre transporte HTTP, regras de negócio e persistência.
-
-## Objetivo da fundação
-
-- Implementar `POST /users` para cadastro.
-- Implementar `POST /login` para emissao de JWT.
-- Implementar `GET /users` para listagem protegida por JWT.
-- Garantir validação de entrada com Zod.
-- Persistir dados com Prisma ORM 6 sobre SQLite.
-- Manter o acesso ao banco encapsulado por `Repository Pattern`.
-- Deixar contratos, tipagem e camadas prontas para expansão de domínio.
-
-## Aderência ao documento
-
-O material do projeto nomeia explicitamente, na modelagem da classe `User`, os métodos:
-
-- `createUser()`
-- `login()`
-- `viewProfile()`
-- `updateProfile()`
-
-Nesta entrega, somente o que foi pedido foi implementado:
-
-- `createUser()` como caso de uso real de cadastro
-- `login()` como autenticacao por e-mail e senha
-- listagem de usuários autenticada via `GET /users`
-
-Os demais comportamentos do documento continuam apenas previstos arquiteturalmente e não foram implementados para não fugir do escopo.
+API REST para uma plataforma de feedback de comunidade. Permite que usuários se cadastrem, autentiquem e enviem feedbacks, com controle de permissões por papel (`USER` / `ADMIN`).
 
 ## Stack
 
-- Node.js
-- TypeScript com `strict: true` e `noImplicitAny: true`
+- Node.js 20+
+- TypeScript com `strict: true`, `noImplicitAny: true` e `exactOptionalPropertyTypes: true`
 - Fastify
 - Prisma ORM v6
 - SQLite
@@ -41,8 +14,7 @@ Os demais comportamentos do documento continuam apenas previstos arquiteturalmen
 - `bcryptjs`
 - Vitest
 - tsup
-- ESLint
-- Prettier
+- ESLint + Prettier
 - dotenv
 
 ## Estrutura de diretórios
@@ -52,13 +24,15 @@ Os demais comportamentos do documento continuam apenas previstos arquiteturalmen
 ├── db/
 │   └── database.sqlite
 ├── prisma/
+│   ├── migrations/
 │   └── schema.prisma
 ├── src/
 │   ├── app.ts
 │   ├── env.ts
 │   ├── server.ts
 │   ├── controllers/
-│   │   └── user.controller.ts
+│   │   ├── user.controller.ts
+│   │   └── feedback.controller.ts
 │   ├── enums/
 │   │   └── user-role.ts
 │   ├── lib/
@@ -66,23 +40,30 @@ Os demais comportamentos do documento continuam apenas previstos arquiteturalmen
 │   ├── middlewares/
 │   │   └── verify-jwt.ts
 │   ├── repositories/
+│   │   ├── user-repository.ts
 │   │   ├── prisma-user-repository.ts
-│   │   └── user-repository.ts
+│   │   ├── feedback-repository.ts
+│   │   └── prisma-feedback-repository.ts
 │   ├── routes/
-│   │   └── users.ts
+│   │   ├── users.ts
+│   │   └── feedbacks.ts
 │   ├── schemas/
 │   │   ├── create-user.schema.ts
-│   │   └── login.schema.ts
+│   │   ├── login.schema.ts
+│   │   ├── update-user.schema.ts
+│   │   ├── create-feedback.schema.ts
+│   │   └── update-feedback.schema.ts
 │   ├── services/
-│   │   └── user.service.ts
+│   │   ├── user.service.ts
+│   │   └── feedback.service.ts
 │   ├── tests/
-│   │   └── users.spec.ts
+│   │   ├── users.spec.ts
+│   │   └── feedbacks.spec.ts
 │   ├── types/
 │   │   └── fastify.d.ts
 │   └── utils/
 │       └── app-error.ts
 ├── .env
-├── .env.example
 ├── .eslintrc.cjs
 ├── .prettierrc.json
 ├── package.json
@@ -92,7 +73,7 @@ Os demais comportamentos do documento continuam apenas previstos arquiteturalmen
 
 ## Arquitetura
 
-### 1. Fluxo por camadas
+### Fluxo por camadas
 
 ```text
 Route
@@ -104,40 +85,23 @@ Route
             -> SQLite
 ```
 
-### 2. Responsabilidades
+### Responsabilidades
 
-- `routes/`: wiring HTTP, middlewares e composição das dependências.
-- `controllers/`: adaptação entre Fastify e casos de uso.
-- `services/`: regras de negócio e orquestração.
-- `repositories/`: contratos de persistência e implementação concreta.
-- `schemas/`: validação e normalização de entrada.
-- `middlewares/`: políticas transversais, como autenticação.
-- `lib/`: adaptadores de infraestrutura compartilhados.
-- `types/`: augmentation de tipos do Fastify/JWT.
-- `utils/`: erros de aplicação e utilitários internos.
+- `routes/` — wiring HTTP, middlewares e composição das dependências
+- `controllers/` — adaptação entre Fastify e casos de uso
+- `services/` — regras de negócio e orquestração
+- `repositories/` — contratos de persistência e implementação concreta
+- `schemas/` — validação e normalização de entrada (Zod)
+- `middlewares/` — políticas transversais como autenticação
+- `lib/` — adaptadores de infraestrutura compartilhados
+- `types/` — augmentation de tipos do Fastify/JWT
+- `utils/` — erros de aplicação padronizados
 
-### 3. Por que Repository Pattern aqui
+### Por que Repository Pattern
 
-O serviço não conhece Prisma. Isso evita que futuras mudanças de persistência ou otimizações de consulta contaminem a regra de negócio. Quando `posts`, `comments` e `votes` forem adicionados, o time poderá repetir o mesmo padrão por agregado:
-
-- contrato em `repositories/`
-- implementação concreta em Prisma
-- service desacoplado de detalhes de ORM
-
-### 4. Nomes de métodos implementados
-
-Para manter o código coerente com a documentação e evitar métodos genéricos demais:
-
-- `UserService.createUser()`
-- `UserService.login()`
-- `UserService.listUsers()`
-- `UserRepository.createUser()`
-- `UserRepository.findUserByEmail()`
-- `UserRepository.listUsers()`
+O service não conhece Prisma. Isso evita que mudanças de persistência contaminem a regra de negócio. Cada domínio segue o mesmo padrão: contrato em `repositories/`, implementação concreta em Prisma, service desacoplado de detalhes de ORM.
 
 ## Modelo de dados
-
-### Prisma schema
 
 ```prisma
 enum UserRole {
@@ -145,40 +109,101 @@ enum UserRole {
   ADMIN
 }
 
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
 model User {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String     @unique
   passwordHash String
-  role         UserRole @default(USER)
-  karma        Int      @default(0)
-  createdAt    DateTime @default(now())
+  role         UserRole   @default(USER)
+  karma        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  feedbacks    Feedback[]
+}
+
+model Feedback {
+  id          String         @id @default(cuid())
+  title       String
+  description String
+  status      FeedbackStatus @default(OPEN)
+  authorId    String
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 ```
 
 ### Observações de modelagem
 
-- `id` usa `cuid()` para manter identificadores estáveis e URL-safe.
-- `email` possui `@unique`, reforçando a regra de unicidade também no banco.
-- `passwordHash` é persistido isoladamente e jamais retorna na API.
-- `role` já está pronto para políticas futuras de autorização.
-- `karma` existe como campo preparado para evolução posterior, mas sem automação neste escopo.
+- `id` usa `cuid()` para identificadores estáveis e URL-safe.
+- `email` possui `@unique`, reforçando a regra também no banco.
+- `passwordHash` jamais retorna na API.
+- `role` controla as políticas de autorização.
+- `karma` existe como campo preparado para evolução, sem automação neste escopo.
+- `onDelete: Cascade` garante que feedbacks sejam removidos ao deletar o autor.
+- `updatedAt` é gerenciado automaticamente pelo Prisma.
 
-## Segurança mínima implementada
+## Variáveis de ambiente
 
-- Senha criptografada com `bcryptjs`.
-- Login gera JWT para acesso a endpoints protegidos.
-- `GET /users` protegido com JWT.
-- Tipagem do payload JWT estendida em `src/types/fastify.d.ts`.
-- Respostas da API nunca expõem `passwordHash`.
-- Validação de payload ocorre antes da execução do service.
-- Tratamento padronizado de erro evita vazamento desnecessário de detalhes internos.
+```env
+DATABASE_URL="file:../db/database.sqlite"
+JWT_SECRET=your-very-strong-secret
+PORT=3333
+NODE_ENV=development
+```
 
-## Endpoints
+## Scripts
+
+| Script | O que faz |
+|---|---|
+| `npm run dev` | Build incremental com tsup e hot-reload |
+| `npm run build` | Gera `dist/` para produção |
+| `npm start` | Executa a build de produção |
+| `npm test` | Sincroniza schema e roda Vitest |
+| `npm run test:watch` | Sincroniza schema e inicia Vitest em modo watch |
+| `npm run lint` | Executa ESLint |
+
+## Bootstrap do banco
+
+```bash
+npm install
+npx prisma generate
+npx prisma db push
+```
+
+O script de teste já executa `prisma db push --skip-generate` antes da suíte.
+
+## Autenticação
+
+Rotas protegidas exigem o token JWT no cabeçalho:
+
+```http
+Authorization: Bearer <token>
+```
+
+O payload do token carrega `sub` (id do usuário) e `role`. Respostas sem token ou com token inválido retornam `401`.
+
+### Papéis
+
+| Papel | Permissões |
+|---|---|
+| `USER` | Cria feedbacks; edita e deleta os próprios feedbacks e a própria conta |
+| `ADMIN` | Tudo do USER, mais: alterar status de qualquer feedback e gerenciar qualquer conta |
+
+Todo usuário criado via `POST /users` começa como `USER`.
+
+---
+
+## Endpoints — Usuários
 
 ### `POST /users`
 
-Cria um usuário.
+Cria um novo usuário.
 
 #### Request body
 
@@ -190,11 +215,13 @@ Cria um usuário.
 }
 ```
 
-#### Regras de validação
+#### Validação
 
-- `name`: string, mínimo de 3 caracteres após `trim`
-- `email`: formato válido, normalizado com `trim` + `toLowerCase`
-- `password`: string, mínimo de 6 caracteres
+| Campo | Regra |
+|---|---|
+| `name` | string, mínimo 3 caracteres após trim |
+| `email` | formato válido, trim + toLowerCase, único no sistema |
+| `password` | string, mínimo 6 caracteres |
 
 #### Response `201`
 
@@ -207,15 +234,47 @@ Cria um usuário.
 }
 ```
 
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `400` | Mensagem de validação do campo inválido |
+| `409` | `Email já cadastrado` |
+
+---
+
+### `POST /login`
+
+Autentica e retorna um token JWT.
+
+#### Request body
+
+```json
+{
+  "email": "joao@email.com",
+  "password": "123456"
+}
+```
+
+#### Response `200`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `401` | `Credenciais invalidas` |
+
+---
+
 ### `GET /users`
 
-Lista usuários cadastrados.
-
-#### Headers
-
-```http
-Authorization: Bearer <jwt>
-```
+Lista todos os usuários. **Requer JWT.**
 
 #### Response `200`
 
@@ -231,30 +290,248 @@ Authorization: Bearer <jwt>
 ]
 ```
 
-### `POST /login`
+---
 
-Autentica um usuario e devolve um token JWT.
+### `GET /users/:id`
 
-#### Request body
-
-```json
-{
-  "email": "joao@email.com",
-  "password": "123456"
-}
-```
+Retorna um usuário pelo ID. **Requer JWT.**
 
 #### Response `200`
 
 ```json
 {
-  "token": "jwt-token-aqui"
+  "id": "cm123...",
+  "name": "João",
+  "email": "joao@email.com",
+  "role": "USER",
+  "karma": 0,
+  "createdAt": "2026-05-29T20:00:00.000Z"
 }
 ```
 
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `404` | `Usuário não encontrado` |
+
+---
+
+### `PUT /users/:id`
+
+Atualiza nome, e-mail ou senha. **Requer JWT. Permissão: próprio usuário ou admin.**
+
+Envie apenas os campos que deseja alterar (mínimo um).
+
+#### Request body
+
+```json
+{
+  "name": "João Atualizado",
+  "email": "novo@email.com",
+  "password": "novasenha123"
+}
+```
+
+#### Validação
+
+| Campo | Regra |
+|---|---|
+| `name` | opcional, mínimo 3 caracteres após trim |
+| `email` | opcional, formato válido |
+| `password` | opcional, mínimo 6 caracteres |
+
+#### Response `200`
+
+Retorna o usuário atualizado (mesmo formato do `GET /users/:id`).
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `400` | `Informe ao menos um campo para atualizar` |
+| `403` | `Sem permissão para atualizar este usuário` |
+| `404` | `Usuário não encontrado` |
+| `409` | `Email já cadastrado` |
+
+---
+
+### `DELETE /users/:id`
+
+Remove um usuário. **Requer JWT. Permissão: próprio usuário ou admin.**
+
+Ao deletar um usuário, todos os seus feedbacks são removidos automaticamente (`onDelete: Cascade`).
+
+#### Response `204`
+
+Sem corpo.
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `403` | `Sem permissão para deletar este usuário` |
+| `404` | `Usuário não encontrado` |
+
+---
+
+## Endpoints — Feedbacks
+
+### `POST /feedbacks`
+
+Cria um feedback. **Requer JWT.** O autor é definido automaticamente pelo token.
+
+#### Request body
+
+```json
+{
+  "title": "Sugestão de melhoria",
+  "description": "Seria ótimo ter um modo escuro no sistema"
+}
+```
+
+#### Validação
+
+| Campo | Regra |
+|---|---|
+| `title` | string, mínimo 5 caracteres após trim |
+| `description` | string, mínimo 10 caracteres após trim |
+
+#### Response `201`
+
+```json
+{
+  "id": "cm456...",
+  "title": "Sugestão de melhoria",
+  "description": "Seria ótimo ter um modo escuro no sistema",
+  "status": "OPEN",
+  "authorId": "cm123...",
+  "createdAt": "2026-05-29T20:00:00.000Z",
+  "updatedAt": "2026-05-29T20:00:00.000Z"
+}
+```
+
+---
+
+### `GET /feedbacks`
+
+Lista feedbacks. **Rota pública.** Aceita filtro opcional por status.
+
+#### Query params
+
+| Parâmetro | Valores aceitos |
+|---|---|
+| `status` | `OPEN`, `IN_PROGRESS`, `DONE` |
+
+Exemplos:
+```
+GET /feedbacks
+GET /feedbacks?status=OPEN
+GET /feedbacks?status=IN_PROGRESS
+GET /feedbacks?status=DONE
+```
+
+#### Response `200`
+
+Array de feedbacks, ordenados do mais recente ao mais antigo.
+
+---
+
+### `GET /feedbacks/:id`
+
+Retorna um feedback pelo ID. **Rota pública.**
+
+#### Response `200`
+
+```json
+{
+  "id": "cm456...",
+  "title": "Sugestão de melhoria",
+  "description": "Seria ótimo ter um modo escuro no sistema",
+  "status": "OPEN",
+  "authorId": "cm123...",
+  "createdAt": "2026-05-29T20:00:00.000Z",
+  "updatedAt": "2026-05-29T20:00:00.000Z"
+}
+```
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `404` | `Feedback não encontrado` |
+
+---
+
+### `PUT /feedbacks/:id`
+
+Atualiza um feedback. **Requer JWT.**
+
+#### Permissões por campo
+
+| Campo | USER (dono) | ADMIN |
+|---|---|---|
+| `title` | ✅ | ✅ |
+| `description` | ✅ | ✅ |
+| `status` | ❌ | ✅ |
+
+Não-donos (sem ser admin) recebem `403` em qualquer tentativa.
+
+#### Request body
+
+```json
+{
+  "title": "Novo título",
+  "description": "Descrição atualizada",
+  "status": "IN_PROGRESS"
+}
+```
+
+Envie apenas os campos que deseja alterar (mínimo um).
+
+#### Validação
+
+| Campo | Regra |
+|---|---|
+| `title` | opcional, mínimo 5 caracteres após trim |
+| `description` | opcional, mínimo 10 caracteres após trim |
+| `status` | opcional, um de: `OPEN`, `IN_PROGRESS`, `DONE` |
+
+#### Response `200`
+
+Retorna o feedback atualizado.
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `400` | `Informe ao menos um campo para atualizar` |
+| `403` | `Sem permissão para editar este feedback` |
+| `403` | `Apenas administradores podem alterar o status` |
+| `404` | `Feedback não encontrado` |
+
+---
+
+### `DELETE /feedbacks/:id`
+
+Remove um feedback. **Requer JWT. Permissão: dono do feedback ou admin.**
+
+#### Response `204`
+
+Sem corpo.
+
+#### Erros
+
+| Código | Mensagem |
+|---|---|
+| `403` | `Sem permissão para deletar este feedback` |
+| `404` | `Feedback não encontrado` |
+
+---
+
 ## Tratamento de erros
 
-Formato padrão:
+Formato padrão de todas as respostas de erro:
 
 ```json
 {
@@ -262,125 +539,91 @@ Formato padrão:
 }
 ```
 
-Mapeamentos atuais:
-
-- `400`: falha de validação Zod
-- `401`: ausencia de JWT, JWT invalido ou credenciais invalidas
-- `409`: e-mail duplicado
-- `500`: erro interno não tratado
+| Código | Significado |
+|---|---|
+| `400` | Falha de validação Zod ou campo faltando |
+| `401` | Token ausente, inválido, expirado ou credenciais erradas |
+| `403` | Autenticado, mas sem permissão para a ação |
+| `404` | Recurso não encontrado |
+| `409` | Conflito (e-mail já cadastrado) |
+| `500` | Erro interno não tratado |
 
 ## JWT
 
-O projeto registra `@fastify/jwt` no bootstrap da aplicação e tipa o payload como:
+Payload tipado em `src/types/fastify.d.ts`:
 
 ```ts
 {
-  sub: string;
+  sub: string;   // id do usuário
   role: UserRole;
-}
-```
-
-Isso permite que futuras features façam autorização com base em `role` sem reestruturar o contrato de autenticação.
-
-## Prisma e SQLite
-
-### Variáveis de ambiente
-
-```env
-DATABASE_URL="file:../db/database.sqlite"
-JWT_SECRET=your-very-strong-secret
-PORT=3333
-NODE_ENV=development
-```
-
-### Bootstrap do banco
-
-1. Instale dependências.
-2. Gere o client Prisma.
-3. Sincronize o schema com o SQLite.
-
-Comandos:
-
-```bash
-npm install
-npx prisma generate
-npx prisma db push
-```
-
-O script de teste já executa `prisma db push --skip-generate` antes da suíte para garantir a existência do schema.
-
-## Scripts
-
-```json
-{
-  "dev": "build incremental com tsup e execução do servidor compilado",
-  "build": "gera dist/",
-  "start": "executa a build em produção",
-  "test": "sincroniza schema e roda Vitest",
-  "test:watch": "sincroniza schema e inicia Vitest watch",
-  "lint": "executa ESLint",
-  "postinstall": "gera Prisma Client automaticamente"
 }
 ```
 
 ## Estratégia de testes
 
-Os testes usam `Fastify.inject()` para evitar dependência de porta TCP e cobrem o comportamento HTTP real da app:
+Os testes usam `Fastify.inject()` para evitar dependência de porta TCP e cobrem o comportamento HTTP real da app. Os arquivos de teste rodam **em série** (`fileParallelism: false` no `vitest.config.ts`) por compartilharem o mesmo banco SQLite.
 
-- criação de usuário com persistência
-- rejeição de e-mail duplicado
-- rejeição de payload inválido
-- login com credenciais validas
-- rejeicao de login invalido
-- proteção do `GET /users` sem token
-- sucesso do `GET /users` com JWT válido
+### Cobertura atual
 
-### Observação importante
+**`users.spec.ts`**
+- Criação de usuário com persistência
+- Rejeição de e-mail duplicado
+- Rejeição de payload inválido
+- Login com credenciais válidas
+- Rejeição de login inválido
+- Proteção do `GET /users` sem token
+- Listagem autenticada
 
-A suíte limpa a tabela `User` entre cenários com `prisma.user.deleteMany()`. Isso garante isolamento sem introduzir uma camada extra de fixtures ainda desnecessária para a fundação.
+**`feedbacks.spec.ts`**
+- Criação autenticada
+- Rejeição sem token
+- Rejeição de payload inválido
+- Listagem pública
+- Filtro por status
+- Busca por ID e 404
+- Atualização pelo dono
+- Rejeição de atualização por não-dono (403)
+- Rejeição de alteração de status por não-admin (403)
+- Alteração de status por admin
+- Exclusão pelo dono
+- Rejeição de exclusão por não-dono (403)
+- Exclusão por admin
 
-## Extensão futura recomendada
+## Segurança implementada
 
-Ao adicionar `posts`, `comments` e `votes`, mantenha o mesmo padrão:
+- Senha criptografada com `bcryptjs` (12 rounds)
+- JWT com payload tipado e verificação via middleware
+- `passwordHash` nunca retorna na API
+- Validação de payload antes da execução do service
+- Autorização por papel em operações sensíveis
+- Erros padronizados sem vazamento de detalhes internos
 
-1. Criar schema Zod por caso de uso.
-2. Criar controller fino.
-3. Criar service contendo apenas regra de negócio.
-4. Criar interface de repositório.
-5. Criar implementação Prisma correspondente.
-6. Registrar rotas no módulo dedicado.
-
-### Diretrizes para não degradar a arquitetura
-
-- Não acessar Prisma diretamente em services.
-- Não validar regra de negócio dentro de controllers.
-- Não retornar entidades persistidas sem DTO explícito.
-- Não reutilizar `request.user` sem tipar o payload necessário.
-- Não misturar autorização com persistência.
-
-## Decisões intencionais
-
-- Não há refresh token, ACL administrativa, upload ou módulos de comunidade além de `users`.
-- Não há migrations versionadas ainda; para a fundação, `db push` reduz atrito inicial. Em ambiente de equipe, o passo natural seguinte é introduzir `prisma migrate dev`.
-- O repositório concreto usa o `PrismaClient` compartilhado de `src/lib/prisma.ts` para evitar instâncias duplicadas do client.
-- O `enum` de papel do usuário é reexportado de `@prisma/client` em `src/enums/user-role.ts`, centralizando o ponto de consumo do domínio.
-
-## Checklist de conformidade com o escopo
+## Checklist de conformidade
 
 - `POST /users`
 - `POST /login`
 - `GET /users`
+- `GET /users/:id`
+- `PUT /users/:id`
+- `DELETE /users/:id`
+- `POST /feedbacks`
+- `GET /feedbacks`
+- `GET /feedbacks?status=`
+- `GET /feedbacks/:id`
+- `PUT /feedbacks/:id`
+- `DELETE /feedbacks/:id`
 - Fastify
 - Prisma ORM 6
-- SQLite em `db/database.sqlite`
+- SQLite
 - Zod
 - JWT
 - `bcryptjs`
 - Repository Pattern
-- Tipagem forte
-- Enum de papéis
+- Tipagem forte com strict mode
+- Enum de papéis (`USER` / `ADMIN`)
+- Enum de status (`OPEN` / `IN_PROGRESS` / `DONE`)
 - Testes automatizados com Vitest
 - Erros padronizados
 - Hash de senha
-- Endpoint protegido
-- Estrutura pronta para crescimento
+- Endpoints protegidos por JWT
+- Autorização por papel
