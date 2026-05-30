@@ -68,6 +68,13 @@ export class PrismaUserRepository implements UserRepository {
     return toUserRecord(user);
   }
 
+  async updateKarma(id: string, delta: number): Promise<void> {
+    await prisma.user.update({
+      where: { id },
+      data: { karma: { increment: delta } }
+    });
+  }
+
   async deleteUser(id: string): Promise<void> {
     await prisma.user.delete({ where: { id } });
   }

@@ -26,6 +26,10 @@ import { prisma } from './lib/prisma';
 import { usersRoutes } from './routes/users';
 // Modulo responsavel pelas rotas de feedbacks.
 import { feedbacksRoutes } from './routes/feedbacks';
+// Modulo responsavel pelas rotas de posts.
+import { postsRoutes } from './routes/posts';
+// Modulo responsavel pelas rotas de comentarios.
+import { commentsRoutes } from './routes/comments';
 // Erro base da aplicacao para respostas controladas de negocio.
 import { AppError } from './utils/app-error';
 
@@ -74,6 +78,10 @@ export function buildApp() {
   app.register(usersRoutes);
   // Registra todas as rotas do modulo de feedbacks.
   app.register(feedbacksRoutes);
+  // Registra todas as rotas do modulo de posts.
+  app.register(postsRoutes);
+  // Registra todas as rotas do modulo de comentarios.
+  app.register(commentsRoutes);
 
   // Centraliza o tratamento de erros para a API responder sempre no mesmo formato.
   app.setErrorHandler((error, _request, reply) => {

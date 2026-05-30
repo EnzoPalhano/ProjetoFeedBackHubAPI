@@ -27,6 +27,9 @@ model User {
   karma        Int        @default(0)
   createdAt    DateTime   @default(now())
   feedbacks    Feedback[]
+  posts        Post[]
+  comments     Comment[]
+  votes        Vote[]
 }
 
 model Feedback {
@@ -38,4 +41,42 @@ model Feedback {
   author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+}
+
+model Post {
+  id        String    @id @default(cuid())
+  title     String
+  content   String
+  userId    String
+  score     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  author    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  votes     Vote[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  postId    String
+  score     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  votes     Vote[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String?
+  commentId String?
+  value     Boolean
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 }
