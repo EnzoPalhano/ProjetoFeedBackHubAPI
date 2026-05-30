@@ -6,7 +6,12 @@ import {
   type UserRepository,
   type UserWithoutPassword
 } from '../repositories/user-repository';
-import { ConflictError, UnauthorizedError } from '../utils/app-error';
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError
+} from '../utils/app-error';
 
 export interface CreateUserInput {
   name: string;
@@ -28,6 +33,12 @@ export type LoginOutput = Pick<
   UserWithoutPassword,
   'id' | 'name' | 'email' | 'role'
 >;
+
+export interface UpdateUserInput {
+  name?: string;
+  email?: string;
+  password?: string;
+}
 
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
@@ -79,7 +90,6 @@ export class UserService {
 
   async listUsers(): Promise<PublicUserListItem[]> {
     const users = await this.userRepository.listUsers();
-
     return users.map((user) => ({
       id: user.id,
       name: user.name,
@@ -87,5 +97,78 @@ export class UserService {
       role: user.role,
       karma: user.karma
     }));
+  }
+
+  async getUserById(id: string): Promise<UserWithoutPassword> {
+    const user = await this.userRepository.findUserById(id);
+    if (!user) throw new NotFoundError('Usuário não encontrado');
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      karma: user.karma,
+      createdAt: user.createdAt
+    };
+  }
+
+  async updateUser(
+    id: string,
+    data: UpdateUserInput,
+    requesterId: string,
+    requesterRole: UserRole
+  ): Promise<UserWithoutPassword> {
+    const user = await this.userRepository.findUserById(id);
+    if (!user) throw new NotFoundError('Usuário não encontrado');
+
+    const isOwner = user.id === requesterId;
+    const isAdmin = requesterRole === UserRole.ADMIN;
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenError('Sem permissão para atualizar este usuário');
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existing = await this.userRepository.findUserByEmail(data.email);
+      if (existing) throw new ConflictError('Email já cadastrado');
+    }
+
+    let passwordHash: string | undefined;
+    if (data.password) {
+      passwordHash = await hash(data.password, 12);
+    }
+
+    const updated = await this.userRepository.updateUser(id, {
+      name: data.name,
+      email: data.email,
+      passwordHash
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      karma: updated.karma,
+      createdAt: updated.createdAt
+    };
+  }
+
+  async deleteUser(
+    id: string,
+    requesterId: string,
+    requesterRole: UserRole
+  ): Promise<void> {
+    const user = await this.userRepository.findUserById(id);
+    if (!user) throw new NotFoundError('Usuário não encontrado');
+
+    const isOwner = user.id === requesterId;
+    const isAdmin = requesterRole === UserRole.ADMIN;
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenError('Sem permissão para deletar este usuário');
+    }
+
+    await this.userRepository.deleteUser(id);
   }
 }

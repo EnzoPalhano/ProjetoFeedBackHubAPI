@@ -24,8 +24,17 @@ export interface CreateUserRepositoryInput {
   role: UserRole;
 }
 
+export interface UpdateUserRepositoryInput {
+  name?: string;
+  email?: string;
+  passwordHash?: string;
+}
+
 export interface UserRepository {
   createUser(data: CreateUserRepositoryInput): Promise<UserRecord>;
   findUserByEmail(email: string): Promise<UserRecord | null>;
+  findUserById(id: string): Promise<UserRecord | null>;
   listUsers(): Promise<UserWithoutPassword[]>;
+  updateUser(id: string, data: UpdateUserRepositoryInput): Promise<UserRecord>;
+  deleteUser(id: string): Promise<void>;
 }

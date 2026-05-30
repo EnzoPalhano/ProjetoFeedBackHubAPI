@@ -3,6 +3,7 @@ import type { User } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import {
   type CreateUserRepositoryInput,
+  type UpdateUserRepositoryInput,
   type UserRecord,
   type UserRepository,
   type UserWithoutPassword
@@ -50,13 +51,24 @@ export class PrismaUserRepository implements UserRepository {
     return user ? toUserRecord(user) : null;
   }
 
+  async findUserById(id: string): Promise<UserRecord | null> {
+    const user = await prisma.user.findUnique({ where: { id } });
+    return user ? toUserRecord(user) : null;
+  }
+
   async listUsers(): Promise<UserWithoutPassword[]> {
     const users = await prisma.user.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: { createdAt: 'desc' }
     });
-
     return users.map(toUserWithoutPassword);
+  }
+
+  async updateUser(id: string, data: UpdateUserRepositoryInput): Promise<UserRecord> {
+    const user = await prisma.user.update({ where: { id }, data });
+    return toUserRecord(user);
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await prisma.user.delete({ where: { id } });
   }
 }

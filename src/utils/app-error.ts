@@ -21,3 +21,17 @@ export class UnauthorizedError extends AppError {
     this.name = 'UnauthorizedError';
   }
 }
+
+export class NotFoundError extends AppError {
+  constructor(message: string) {
+    super(message, 404);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message: string) {
+    super(message, 403);
+    this.name = 'ForbiddenError';
+  }
+}

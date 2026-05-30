@@ -12,13 +12,10 @@ export const usersRoutes: FastifyPluginCallback = (app, _opts, done) => {
 
   app.post('/users', controller.createUser);
   app.post('/login', controller.login);
-  app.get(
-    '/users',
-    {
-      preHandler: [verifyJwt]
-    },
-    controller.listUsers
-  );
+  app.get('/users', { preHandler: [verifyJwt] }, controller.listUsers);
+  app.get('/users/:id', { preHandler: [verifyJwt] }, controller.getUser);
+  app.put('/users/:id', { preHandler: [verifyJwt] }, controller.updateUser);
+  app.delete('/users/:id', { preHandler: [verifyJwt] }, controller.deleteUser);
 
   done();
 };

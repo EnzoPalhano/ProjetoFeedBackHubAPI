@@ -12,12 +12,30 @@ enum UserRole {
   ADMIN
 }
 
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
 model User {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String     @unique
   passwordHash String
-  role         UserRole @default(USER)
-  karma        Int      @default(0)
-  createdAt    DateTime @default(now())
+  role         UserRole   @default(USER)
+  karma        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  feedbacks    Feedback[]
+}
+
+model Feedback {
+  id          String         @id @default(cuid())
+  title       String
+  description String
+  status      FeedbackStatus @default(OPEN)
+  authorId    String
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
