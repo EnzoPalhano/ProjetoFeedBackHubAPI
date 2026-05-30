@@ -17,6 +17,7 @@ export interface CreateCommentRepositoryInput {
 export interface CommentRepository {
   createComment(data: CreateCommentRepositoryInput): Promise<CommentRecord>;
   findCommentById(id: string): Promise<CommentRecord | null>;
+  findCommentsByPostId(postId: string): Promise<CommentRecord[]>;
   updateComment(id: string, content: string): Promise<CommentRecord>;
   deleteComment(id: string): Promise<void>;
   incrementScore(id: string, delta: number): Promise<void>;

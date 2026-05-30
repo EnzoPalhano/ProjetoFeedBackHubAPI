@@ -15,6 +15,12 @@ export class CommentService {
     private readonly postRepository: PostRepository
   ) {}
 
+  async getCommentsByPostId(postId: string): Promise<CommentRecord[]> {
+    const post = await this.postRepository.findPostById(postId);
+    if (!post) throw new NotFoundError('Post não encontrado');
+    return this.commentRepository.findCommentsByPostId(postId);
+  }
+
   async createComment(data: CreateCommentInput): Promise<CommentRecord> {
     const post = await this.postRepository.findPostById(data.postId);
     if (!post) throw new NotFoundError('Post não encontrado');

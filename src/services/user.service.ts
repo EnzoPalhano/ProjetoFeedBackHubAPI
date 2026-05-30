@@ -155,6 +155,29 @@ export class UserService {
     };
   }
 
+  async changeUserRole(
+    id: string,
+    newRole: UserRole,
+    requesterRole: UserRole
+  ): Promise<UserWithoutPassword> {
+    if (requesterRole !== UserRole.ADMIN) {
+      throw new ForbiddenError('Apenas administradores podem alterar roles');
+    }
+
+    const user = await this.userRepository.findUserById(id);
+    if (!user) throw new NotFoundError('Usuário não encontrado');
+
+    const updated = await this.userRepository.updateRole(id, newRole);
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      karma: updated.karma,
+      createdAt: updated.createdAt
+    };
+  }
+
   async deleteUser(
     id: string,
     requesterId: string,

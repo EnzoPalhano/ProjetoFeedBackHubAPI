@@ -6,6 +6,12 @@ import type { CommentService } from '../services/comment.service';
 
 export function commentController(service: CommentService) {
   return {
+    listComments: async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
+      const { postId } = request.params as { postId: string };
+      const comments = await service.getCommentsByPostId(postId);
+      return reply.status(200).send(comments);
+    },
+
     createComment: async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
       const { postId } = request.params as { postId: string };
       const payload = createCommentSchema.parse(request.body);

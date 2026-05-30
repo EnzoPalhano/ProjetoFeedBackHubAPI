@@ -32,6 +32,7 @@ export const postsRoutes: FastifyPluginCallback = (app, _opts, done) => {
   app.put('/posts/:id', { preHandler: [verifyJwt] }, postCtrl.updatePost);
   app.delete('/posts/:id', { preHandler: [verifyJwt] }, postCtrl.deletePost);
 
+  app.get('/posts/:postId/comments', { preHandler: [verifyJwt] }, commentCtrl.listComments);
   app.post('/posts/:postId/comments', { preHandler: [verifyJwt] }, commentCtrl.createComment);
 
   app.post('/posts/:postId/vote', { preHandler: [verifyJwt] }, voteCtrl.voteOnPost);

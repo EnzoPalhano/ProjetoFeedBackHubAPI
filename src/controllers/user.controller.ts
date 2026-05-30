@@ -5,6 +5,7 @@ import {
   type CreateUserSchemaInput
 } from '../schemas/create-user.schema';
 import { loginSchema, type LoginSchemaInput } from '../schemas/login.schema';
+import { updateRoleSchema } from '../schemas/update-role.schema';
 import { updateUserSchema } from '../schemas/update-user.schema';
 import { type UserService } from '../services/user.service';
 
@@ -59,6 +60,28 @@ export function userController(service: UserService) {
       if (parsed.email !== undefined) payload.email = parsed.email;
       if (parsed.password !== undefined) payload.password = parsed.password;
       const user = await service.updateUser(id, payload, request.user.sub, request.user.role);
+      return reply.status(200).send(user);
+    },
+
+    getMe: async (
+      request: FastifyRequest,
+      reply: FastifyReply
+    ): Promise<FastifyReply> => {
+      const user = await service.getUserById(request.user.sub);
+      return reply.status(200).send(user);
+    },
+
+    changeUserRole: async (
+      request: FastifyRequest,
+      reply: FastifyReply
+    ): Promise<FastifyReply> => {
+      const { id } = request.params as { id: string };
+      const { role } = updateRoleSchema.parse(request.body);
+      const user = await service.changeUserRole(
+        id,
+        role as import('../enums/user-role').UserRole,
+        request.user.role
+      );
       return reply.status(200).send(user);
     },
 

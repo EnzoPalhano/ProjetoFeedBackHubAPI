@@ -36,6 +36,7 @@ export interface UserRepository {
   findUserById(id: string): Promise<UserRecord | null>;
   listUsers(): Promise<UserWithoutPassword[]>;
   updateUser(id: string, data: UpdateUserRepositoryInput): Promise<UserRecord>;
+  updateRole(id: string, role: UserRole): Promise<UserRecord>;
   updateKarma(id: string, delta: number): Promise<void>;
   deleteUser(id: string): Promise<void>;
 }

@@ -30,6 +30,14 @@ export class PrismaCommentRepository implements CommentRepository {
     return comment ? toCommentRecord(comment) : null;
   }
 
+  async findCommentsByPostId(postId: string): Promise<CommentRecord[]> {
+    const comments = await prisma.comment.findMany({
+      where: { postId },
+      orderBy: { createdAt: 'asc' }
+    });
+    return comments.map(toCommentRecord);
+  }
+
   async updateComment(id: string, content: string): Promise<CommentRecord> {
     const comment = await prisma.comment.update({ where: { id }, data: { content } });
     return toCommentRecord(comment);

@@ -1,6 +1,7 @@
 import type { User } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
+import { UserRole } from '../enums/user-role';
 import {
   type CreateUserRepositoryInput,
   type UpdateUserRepositoryInput,
@@ -65,6 +66,11 @@ export class PrismaUserRepository implements UserRepository {
 
   async updateUser(id: string, data: UpdateUserRepositoryInput): Promise<UserRecord> {
     const user = await prisma.user.update({ where: { id }, data });
+    return toUserRecord(user);
+  }
+
+  async updateRole(id: string, role: UserRole): Promise<UserRecord> {
+    const user = await prisma.user.update({ where: { id }, data: { role } });
     return toUserRecord(user);
   }
 
