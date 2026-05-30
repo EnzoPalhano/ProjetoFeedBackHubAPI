@@ -7,7 +7,7 @@ import {
 import { loginSchema, type LoginSchemaInput } from '../schemas/login.schema';
 import { updateRoleSchema } from '../schemas/update-role.schema';
 import { updateUserSchema } from '../schemas/update-user.schema';
-import { type UserService } from '../services/user.service';
+import type { UpdateUserInput, UserService } from '../services/user.service';
 
 export function userController(service: UserService) {
   return {
@@ -55,7 +55,7 @@ export function userController(service: UserService) {
     ): Promise<FastifyReply> => {
       const { id } = request.params as { id: string };
       const parsed = updateUserSchema.parse(request.body);
-      const payload: import('../services/user.service').UpdateUserInput = {};
+      const payload: UpdateUserInput = {};
       if (parsed.name !== undefined) payload.name = parsed.name;
       if (parsed.email !== undefined) payload.email = parsed.email;
       if (parsed.password !== undefined) payload.password = parsed.password;
@@ -77,11 +77,7 @@ export function userController(service: UserService) {
     ): Promise<FastifyReply> => {
       const { id } = request.params as { id: string };
       const { role } = updateRoleSchema.parse(request.body);
-      const user = await service.changeUserRole(
-        id,
-        role as import('../enums/user-role').UserRole,
-        request.user.role
-      );
+      const user = await service.changeUserRole(id, role, request.user.role);
       return reply.status(200).send(user);
     },
 

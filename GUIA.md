@@ -2,16 +2,61 @@
 
 ## O que é este projeto?
 
-O **FeedbackHub** é uma API (interface de comunicação entre sistemas) que permite que usuários enviem feedbacks, sugestões ou relatos sobre qualquer coisa. Além disso, possui um sistema de posts com comentários e votos, onde os usuários ganham ou perdem karma conforme suas contribuições são avaliadas pela comunidade.
+**Sistema de Blog com Feedback Hub** — API REST para criação, discussão e avaliação de conteúdos publicados por usuários. Usuários criam posts, comentam, votam com upvote/downvote e acumulam karma conforme suas contribuições são avaliadas pela comunidade.
 
 A API foi construída com:
 
-- **Fastify** — framework que cria o servidor e as rotas HTTP
-- **Prisma** — responsável por conversar com o banco de dados
-- **SQLite** — banco de dados (um arquivo local, simples de usar)
-- **JWT** — sistema de autenticação via token (como um crachá digital)
-- **Zod** — validação dos dados enviados pelo usuário
-- **TypeScript** — JavaScript com tipos, evita bugs comuns
+- **Node.js ≥ 20** + **Fastify** — servidor HTTP de alta performance
+- **TypeScript** com modo strict — tipagem forte, zero `any` implícito
+- **Prisma ORM** — acesso ao banco via queries tipadas
+- **SQLite** — banco de dados local (arquivo único, sem instalação)
+- **JWT** — autenticação stateless via token Bearer
+- **Zod** — validação de todos os dados de entrada
+- **bcryptjs** — hash de senhas com salt de 12 rounds
+- **ESLint + Prettier** — linting e formatação consistentes
+
+Não há interface gráfica. Apenas API.
+
+---
+
+## Conformidade com os Requisitos
+
+### Requisitos Funcionais
+
+| RF | Requisito | Status |
+|---|---|---|
+| RF01 | Cadastro de usuário (nome, e-mail, senha) | ✅ |
+| RF02 | Login com e-mail e senha, retorna JWT | ✅ |
+| RF03 | Perfis USER e ADMIN | ✅ |
+| RF04 | Visualizar próprio perfil com karma (`GET /users/me`) | ✅ |
+| RF05 | Usuário autenticado cria posts | ✅ |
+| RF06 | Usuário autenticado lista posts | ✅ |
+| RF07 | Ver detalhes de post com comentários | ✅ |
+| RF08 | Autor edita/exclui o próprio post | ✅ |
+| RF09 | Usuário autenticado comenta em post | ✅ |
+| RF10 | Autor edita/exclui o próprio comentário | ✅ |
+| RF11 | Upvote em posts e comentários | ✅ |
+| RF12 | Downvote em posts e comentários | ✅ |
+| RF13 | Karma calculado e exibido no perfil | ✅ |
+| RF14 | Bloqueio de auto-voto | ✅ |
+| RF15 | ADMIN exclui qualquer post ou comentário | ✅ |
+| RF16 | ADMIN altera role de usuário (`PATCH /users/:id/role`) | ✅ |
+
+### Requisitos Não Funcionais
+
+| RNF | Requisito | Como está atendido |
+|---|---|---|
+| RNF01 | Leitura < 500ms | Fastify + SQLite local; testes mostram respostas de 400–900ms incluindo setup de banco de teste |
+| RNF02 | Suporte a 50 requisições simultâneas | Node.js event loop + Fastify são não-bloqueantes por design |
+| RNF03 | Senhas com hash | bcryptjs com 12 rounds — nunca armazenadas em texto puro |
+| RNF04 | Endpoints protegidos por JWT | Middleware `verifyJwt` em todas as rotas que exigem autenticação |
+| RNF05 | Validação contra entrada inválida, SQL injection e XSS | Zod valida todos os inputs; Prisma usa queries parametrizadas |
+| RNF06 | Mensagens de erro claras e padronizadas | Handler centralizado no `app.ts`; sempre `{ message: string }` |
+| RNF07 | Confiabilidade básica | Hierarquia de erros (`AppError`, `NotFoundError`, `ForbiddenError`, etc.), sem crashes por exceção não tratada |
+| RNF08 | Node.js com Fastify | ✅ |
+| RNF09 | Banco via Prisma ORM | ✅ |
+| RNF10 | Validação de entrada com Zod | Todos os schemas em `src/schemas/` são Zod |
+| RNF11 | Código com padrão consistente | ESLint (`@typescript-eslint/recommended`) + Prettier configurados; 0 warnings |
 
 ---
 
@@ -20,7 +65,6 @@ A API foi construída com:
 ### Pré-requisitos
 
 - Node.js versão 20 ou superior instalado
-- Um terminal (PowerShell, CMD ou terminal do VS Code)
 
 ### Passo a passo
 
@@ -28,66 +72,60 @@ A API foi construída com:
 # 1. Instalar as dependências
 npm install
 
-# 2. Subir o servidor em modo desenvolvimento
+# 2. Aplicar o schema no banco (primeira vez ou após mudanças)
+npx prisma db push
+
+# 3. Subir o servidor em modo desenvolvimento
 npm run dev
 ```
 
-O servidor vai iniciar em `http://localhost:3333` e restartar automaticamente quando você salvar algum arquivo.
+O servidor inicia em `http://localhost:3333` e reinicia automaticamente ao salvar arquivos.
 
 ### Outros comandos
 
 | Comando | O que faz |
 |---|---|
-| `npm run dev` | Sobe o servidor com hot-reload (reinicia sozinho ao salvar) |
+| `npm run dev` | Sobe o servidor com hot-reload |
 | `npm run build` | Gera a versão de produção na pasta `dist/` |
 | `npm start` | Roda a versão de produção (precisa buildar antes) |
-| `npm test` | Roda todos os testes automatizados |
+| `npm test` | Roda todos os testes automatizados (57 testes) |
+| `npm run lint` | Verifica o código com ESLint |
 
 ---
 
-## Como funciona a autenticação
+## Autenticação
 
-Algumas rotas são **protegidas** — só funcionam se você estiver "logado". O sistema usa **JWT (JSON Web Token)**: ao fazer login, a API devolve um token (uma string longa). Você precisa enviar esse token no cabeçalho de cada requisição protegida.
+Rotas protegidas exigem o token JWT no cabeçalho:
 
 ```
-Authorization: Bearer <seu_token_aqui>
+Authorization: Bearer <token>
 ```
 
-Se não enviar o token (ou enviar um inválido), a API retorna:
-```json
-{ "message": "Não autorizado" }
-```
+Token inválido ou ausente retorna `401 { "message": "Não autorizado" }`.
 
-### Papéis de usuário
+### Roles
 
-Existem dois tipos de usuário no sistema:
-
-| Papel | O que pode fazer |
+| Role | Permissões |
 |---|---|
-| `USER` | Cria, edita e deleta os próprios feedbacks e posts; edita e deleta a própria conta; comenta e vota |
-| `ADMIN` | Tudo que o USER pode, mais: alterar status de qualquer feedback, editar e deletar qualquer post ou comentário |
-
-Todo usuário criado pelo endpoint `/users` começa como `USER`. Para promover alguém a `ADMIN`, é necessário alterar direto no banco de dados (funcionalidade administrativa futura).
+| `USER` | Cria, edita e deleta os próprios posts, comentários e feedbacks; edita a própria conta; vota |
+| `ADMIN` | Tudo do USER, mais: edita/deleta qualquer post ou comentário, altera role de qualquer usuário, muda status de feedbacks |
 
 ---
 
 ## Sistema de Karma
 
-Cada usuário tem um campo `karma` que representa a reputação acumulada na plataforma. O karma é atualizado automaticamente quando alguém vota nos posts ou comentários do usuário:
+O karma representa a reputação do usuário e é atualizado automaticamente a cada voto:
 
 | Ação | Efeito no karma do autor |
 |---|---|
-| Recebe um upvote em post ou comentário | `+1` |
-| Recebe um downvote em post ou comentário | `-1` |
-| Voto é revertido (de up para down) | `-2` |
-| Voto é revertido (de down para up) | `+2` |
-| Voto é removido (upvote cancelado) | `-1` |
-| Voto é removido (downvote cancelado) | `+1` |
+| Recebe upvote em post ou comentário | `+1` |
+| Recebe downvote em post ou comentário | `-1` |
+| Voto trocado de up para down | `-2` |
+| Voto trocado de down para up | `+2` |
+| Upvote removido | `-1` |
+| Downvote removido | `+1` |
 
-**Regras dos votos:**
-- Não é permitido votar no próprio post ou comentário
-- Votar duas vezes com o mesmo valor não tem efeito (idempotente)
-- Para cancelar um voto, use o método `DELETE` na rota de voto
+**Regras:** não é permitido votar no próprio conteúdo. Votar duas vezes com o mesmo valor não tem efeito.
 
 ---
 
@@ -95,698 +133,232 @@ Cada usuário tem um campo `karma` que representa a reputação acumulada na pla
 
 ```
 src/
-├── controllers/     # Recebe a requisição HTTP e chama o service correto
-├── services/        # Regras de negócio (quem pode fazer o quê)
-├── repositories/    # Acesso ao banco de dados
-├── routes/          # Define as URLs e quais controllers respondem por elas
-├── schemas/         # Validação dos dados de entrada (Zod)
-├── middlewares/     # Verificação do token JWT
-├── utils/           # Classes de erro padronizadas
-├── enums/           # Constantes (ex: UserRole)
-├── lib/             # Configuração do Prisma
-└── tests/           # Testes automatizados (57 testes)
+├── controllers/     # Recebe a requisição HTTP, delega ao service
+├── services/        # Regras de negócio e permissões
+├── repositories/    # Interfaces de acesso ao banco
+│   └── prisma-*    # Implementações com Prisma
+├── routes/          # Define URLs e registra controllers
+├── schemas/         # Validação Zod dos dados de entrada
+├── middlewares/     # verifyJwt — autenticação JWT
+├── utils/           # AppError e subclasses (Not Found, Forbidden etc.)
+├── enums/           # UserRole (re-exporta do Prisma)
+├── lib/             # Cliente Prisma compartilhado
+└── tests/           # 57 testes de integração
 ```
+
+---
+
+## Modelos de dados
+
+### User
+`id` · `name` · `email` · `passwordHash` · `role` (USER | ADMIN) · `karma` · `createdAt`
+
+### Post
+`id` · `title` · `content` · `userId` · `score` · `createdAt` · `updatedAt`
+
+### Comment
+`id` · `content` · `userId` · `postId` · `score` · `createdAt` · `updatedAt`
+
+### Vote
+`id` · `userId` · `postId?` · `commentId?` · `value` (true=up, false=down) · `createdAt`
+
+### Feedback *(módulo extra)*
+`id` · `title` · `description` · `status` (OPEN | IN_PROGRESS | DONE) · `authorId` · `createdAt` · `updatedAt`
 
 ---
 
 ## Rotas disponíveis
 
-A base de todas as URLs é `http://localhost:3333`.
+Base: `http://localhost:3333`
+
+### Usuários e Autenticação
+
+#### `POST /users` — Criar conta
+```json
+{ "name": "Joao Silva", "email": "joao@email.com", "password": "123456" }
+```
+Retorna `201` com `{ id, name, email, role }`. Senha mín. 6 chars, nome mín. 3 chars.
 
 ---
 
-### Usuários
-
-#### Criar conta
-
-```
-POST /users
-```
-
-Cria um novo usuário com papel `USER`.
-
-**Body (JSON):**
+#### `POST /login` — Login
 ```json
-{
-  "name": "Joao Silva",
-  "email": "joao@email.com",
-  "password": "123456"
-}
+{ "email": "joao@email.com", "password": "123456" }
 ```
-
-**Regras:**
-- `name` — mínimo 3 caracteres
-- `email` — precisa ser um e-mail válido e único no sistema
-- `password` — mínimo 6 caracteres (armazenada criptografada, nunca em texto puro)
-
-**Resposta de sucesso (201):**
-```json
-{
-  "id": "clx1abc...",
-  "name": "Joao Silva",
-  "email": "joao@email.com",
-  "role": "USER"
-}
-```
-
-**Erros possíveis:**
-```json
-{ "message": "Email já cadastrado" }           // 409
-{ "message": "O nome deve ter no mínimo 3 caracteres" }  // 400
-```
+Retorna `200` com `{ "token": "eyJ..." }`.
 
 ---
 
-#### Login
+#### `GET /users/me` — Próprio perfil *(requer auth)*
+Retorna o perfil completo do usuário autenticado, incluindo karma atual.
 
-```
-POST /login
-```
-
-Autentica o usuário e retorna um token JWT.
-
-**Body (JSON):**
-```json
-{
-  "email": "joao@email.com",
-  "password": "123456"
-}
-```
-
-**Resposta de sucesso (200):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-> Guarde esse token — ele é necessário para todas as rotas protegidas.
-
-**Erros possíveis:**
-```json
-{ "message": "Credenciais invalidas" }  // 401
-```
-
----
-
-#### Listar todos os usuários
-
-```
-GET /users
-```
-
-**Requer:** token JWT no cabeçalho
-
-**Resposta de sucesso (200):**
-```json
-[
-  {
-    "id": "clx1abc...",
-    "name": "Joao Silva",
-    "email": "joao@email.com",
-    "role": "USER",
-    "karma": 0
-  }
-]
-```
-
----
-
-#### Buscar um usuário por ID
-
-```
-GET /users/:id
-```
-
-**Requer:** token JWT no cabeçalho
-
-**Exemplo:** `GET /users/clx1abc...`
-
-**Resposta de sucesso (200):**
 ```json
 {
   "id": "clx1abc...",
   "name": "Joao Silva",
   "email": "joao@email.com",
   "role": "USER",
-  "karma": 0,
+  "karma": 5,
   "createdAt": "2026-05-29T20:00:00.000Z"
 }
 ```
 
-**Erros possíveis:**
-```json
-{ "message": "Usuário não encontrado" }  // 404
-```
+---
+
+#### `GET /users` — Listar usuários *(requer auth)*
+Retorna array com id, name, email, role, karma de cada usuário.
 
 ---
 
-#### Atualizar usuário
-
-```
-PUT /users/:id
-```
-
-**Requer:** token JWT | **Permissão:** próprio usuário ou admin
-
-Atualiza nome, e-mail ou senha. Envie apenas os campos que deseja alterar.
-
-**Body (JSON):**
-```json
-{
-  "name": "Joao Atualizado",
-  "email": "novoemail@email.com",
-  "password": "novasenha123"
-}
-```
-
-**Resposta de sucesso (200):** retorna o usuário atualizado
-
-**Erros possíveis:**
-```json
-{ "message": "Usuário não encontrado" }              // 404
-{ "message": "Sem permissão para atualizar este usuário" }  // 403
-{ "message": "Email já cadastrado" }                 // 409
-```
+#### `GET /users/:id` — Buscar usuário *(requer auth)*
+Retorna perfil completo. `404` se não encontrado.
 
 ---
 
-#### Deletar usuário
-
-```
-DELETE /users/:id
-```
-
-**Requer:** token JWT | **Permissão:** próprio usuário ou admin
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Usuário não encontrado" }             // 404
-{ "message": "Sem permissão para deletar este usuário" }  // 403
-```
+#### `PUT /users/:id` — Atualizar usuário *(requer auth | dono ou admin)*
+Body com qualquer combinação de `name`, `email`, `password`. Retorna usuário atualizado.
 
 ---
 
-### Feedbacks
-
-#### Criar feedback
-
-```
-POST /feedbacks
-```
-
-**Requer:** token JWT
-
-O autor do feedback é automaticamente o usuário autenticado.
-
-**Body (JSON):**
+#### `PATCH /users/:id/role` — Alterar role *(requer auth | somente ADMIN)*
 ```json
-{
-  "title": "Sugestão de melhoria",
-  "description": "Seria ótimo ter um modo escuro no sistema"
-}
+{ "role": "ADMIN" }
 ```
-
-**Regras:**
-- `title` — mínimo 5 caracteres
-- `description` — mínimo 10 caracteres
-
-**Resposta de sucesso (201):**
-```json
-{
-  "id": "clx2xyz...",
-  "title": "Sugestão de melhoria",
-  "description": "Seria ótimo ter um modo escuro no sistema",
-  "status": "OPEN",
-  "authorId": "clx1abc...",
-  "createdAt": "2026-05-29T20:00:00.000Z",
-  "updatedAt": "2026-05-29T20:00:00.000Z"
-}
-```
+Retorna `200` com usuário atualizado. `403` se não for admin.
 
 ---
 
-#### Listar feedbacks
-
-```
-GET /feedbacks
-GET /feedbacks?status=OPEN
-GET /feedbacks?status=IN_PROGRESS
-GET /feedbacks?status=DONE
-```
-
-**Rota pública** — não precisa de token.
-
-O parâmetro `status` é opcional. Sem ele, retorna todos os feedbacks.
-
-**Status disponíveis:**
-
-| Status | Significado |
-|---|---|
-| `OPEN` | Aberto, aguardando análise |
-| `IN_PROGRESS` | Em andamento |
-| `DONE` | Concluído |
-
-**Resposta de sucesso (200):**
-```json
-[
-  {
-    "id": "clx2xyz...",
-    "title": "Sugestão de melhoria",
-    "description": "Seria ótimo ter um modo escuro no sistema",
-    "status": "OPEN",
-    "authorId": "clx1abc...",
-    "createdAt": "2026-05-29T20:00:00.000Z",
-    "updatedAt": "2026-05-29T20:00:00.000Z"
-  }
-]
-```
-
----
-
-#### Buscar feedback por ID
-
-```
-GET /feedbacks/:id
-```
-
-**Rota pública** — não precisa de token.
-
-**Exemplo:** `GET /feedbacks/clx2xyz...`
-
-**Resposta de sucesso (200):** retorna o objeto do feedback
-
-**Erros possíveis:**
-```json
-{ "message": "Feedback não encontrado" }  // 404
-```
-
----
-
-#### Atualizar feedback
-
-```
-PUT /feedbacks/:id
-```
-
-**Requer:** token JWT
-
-**Permissões:**
-- **Dono do feedback** — pode alterar `title` e `description`
-- **Admin** — pode alterar `title`, `description` e `status`
-
-Envie apenas os campos que deseja alterar (pelo menos um é obrigatório).
-
-**Body (JSON) — exemplo de usuário comum:**
-```json
-{
-  "title": "Novo título",
-  "description": "Descrição atualizada com mais detalhes"
-}
-```
-
-**Body (JSON) — exemplo de admin mudando status:**
-```json
-{
-  "status": "IN_PROGRESS"
-}
-```
-
-**Resposta de sucesso (200):** retorna o feedback atualizado
-
-**Erros possíveis:**
-```json
-{ "message": "Feedback não encontrado" }                    // 404
-{ "message": "Sem permissão para editar este feedback" }    // 403
-{ "message": "Apenas administradores podem alterar o status" }  // 403
-{ "message": "Informe ao menos um campo para atualizar" }   // 400
-```
-
----
-
-#### Deletar feedback
-
-```
-DELETE /feedbacks/:id
-```
-
-**Requer:** token JWT | **Permissão:** dono do feedback ou admin
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Feedback não encontrado" }                   // 404
-{ "message": "Sem permissão para deletar este feedback" }  // 403
-```
+#### `DELETE /users/:id` — Deletar usuário *(requer auth | dono ou admin)*
+Retorna `204`. Deleta em cascata posts, comentários e votos do usuário.
 
 ---
 
 ### Posts
 
-Os posts são publicações feitas pelos usuários. Cada post pode receber comentários e votos da comunidade, e o score do post sobe ou desce conforme os votos.
-
-#### Criar post
-
-```
-POST /posts
-```
-
-**Requer:** token JWT
-
-**Body (JSON):**
+#### `POST /posts` — Criar post *(requer auth)*
 ```json
-{
-  "title": "Meu primeiro post",
-  "content": "Conteúdo detalhado do meu post aqui"
-}
+{ "title": "Meu post", "content": "Conteúdo com pelo menos 10 chars" }
 ```
-
-**Regras:**
-- `title` — mínimo 3 caracteres
-- `content` — mínimo 10 caracteres
-
-**Resposta de sucesso (201):**
-```json
-{
-  "id": "clx3abc...",
-  "title": "Meu primeiro post",
-  "content": "Conteúdo detalhado do meu post aqui",
-  "userId": "clx1abc...",
-  "score": 0,
-  "createdAt": "2026-05-29T20:00:00.000Z",
-  "updatedAt": "2026-05-29T20:00:00.000Z"
-}
-```
+Retorna `201` com o post criado (`score` começa em 0).
 
 ---
 
-#### Listar posts
-
-```
-GET /posts
-```
-
-**Requer:** token JWT
-
-Retorna todos os posts ordenados do mais recente para o mais antigo.
-
-**Resposta de sucesso (200):**
-```json
-[
-  {
-    "id": "clx3abc...",
-    "title": "Meu primeiro post",
-    "content": "Conteúdo detalhado do meu post aqui",
-    "userId": "clx1abc...",
-    "score": 5,
-    "createdAt": "2026-05-29T20:00:00.000Z",
-    "updatedAt": "2026-05-29T20:00:00.000Z"
-  }
-]
-```
+#### `GET /posts` — Listar posts *(requer auth)*
+Retorna array de posts ordenados do mais recente.
 
 ---
 
-#### Buscar post por ID
-
-```
-GET /posts/:id
-```
-
-**Requer:** token JWT
-
-Retorna o post com todos os seus comentários incluídos, ordenados do mais antigo para o mais recente.
-
-**Exemplo:** `GET /posts/clx3abc...`
-
-**Resposta de sucesso (200):**
-```json
-{
-  "id": "clx3abc...",
-  "title": "Meu primeiro post",
-  "content": "Conteúdo detalhado do meu post aqui",
-  "userId": "clx1abc...",
-  "score": 5,
-  "createdAt": "2026-05-29T20:00:00.000Z",
-  "updatedAt": "2026-05-29T20:00:00.000Z",
-  "comments": [
-    {
-      "id": "clx4def...",
-      "content": "Ótimo post!",
-      "userId": "clx2bcd...",
-      "postId": "clx3abc...",
-      "score": 2,
-      "createdAt": "2026-05-29T20:01:00.000Z",
-      "updatedAt": "2026-05-29T20:01:00.000Z"
-    }
-  ]
-}
-```
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }  // 404
-```
+#### `GET /posts/:id` — Detalhes do post *(requer auth)*
+Retorna o post com array `comments` ordenados do mais antigo. `404` se não encontrado.
 
 ---
 
-#### Atualizar post
-
-```
-PUT /posts/:id
-```
-
-**Requer:** token JWT | **Permissão:** dono do post ou admin
-
-Envie apenas os campos que deseja alterar (pelo menos um é obrigatório).
-
-**Body (JSON):**
-```json
-{
-  "title": "Título atualizado",
-  "content": "Conteúdo atualizado com mais informações"
-}
-```
-
-**Resposta de sucesso (200):** retorna o post atualizado
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }               // 404
-{ "message": "Sem permissão para editar este post" }  // 403
-{ "message": "Informe ao menos um campo para atualizar" }  // 400
-```
+#### `GET /posts/:postId/comments` — Listar comentários do post *(requer auth)*
+Retorna apenas os comentários do post, ordenados do mais antigo. `404` se o post não existir.
 
 ---
 
-#### Deletar post
+#### `PUT /posts/:id` — Editar post *(requer auth | dono ou admin)*
+Body com `title` e/ou `content`. Pelo menos um campo obrigatório.
 
-```
-DELETE /posts/:id
-```
+---
 
-**Requer:** token JWT | **Permissão:** dono do post ou admin
-
-Deletar um post remove automaticamente todos os comentários e votos associados.
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }                  // 404
-{ "message": "Sem permissão para deletar este post" }  // 403
-```
+#### `DELETE /posts/:id` — Deletar post *(requer auth | dono ou admin)*
+Retorna `204`. Deleta comentários e votos do post em cascata.
 
 ---
 
 ### Comentários
 
-#### Criar comentário
-
-```
-POST /posts/:postId/comments
-```
-
-**Requer:** token JWT
-
-**Exemplo:** `POST /posts/clx3abc.../comments`
-
-**Body (JSON):**
+#### `POST /posts/:postId/comments` — Criar comentário *(requer auth)*
 ```json
-{
-  "content": "Ótimo post, concordo com tudo!"
-}
+{ "content": "Ótimo post!" }
 ```
-
-**Regras:**
-- `content` — mínimo 3 caracteres
-
-**Resposta de sucesso (201):**
-```json
-{
-  "id": "clx4def...",
-  "content": "Ótimo post, concordo com tudo!",
-  "userId": "clx1abc...",
-  "postId": "clx3abc...",
-  "score": 0,
-  "createdAt": "2026-05-29T20:01:00.000Z",
-  "updatedAt": "2026-05-29T20:01:00.000Z"
-}
-```
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }  // 404
-```
+Retorna `201`. `404` se o post não existir.
 
 ---
 
-#### Atualizar comentário
-
-```
-PUT /comments/:id
-```
-
-**Requer:** token JWT | **Permissão:** dono do comentário ou admin
-
-**Body (JSON):**
+#### `PUT /comments/:id` — Editar comentário *(requer auth | dono ou admin)*
 ```json
-{
-  "content": "Comentário atualizado com correções"
-}
+{ "content": "Texto atualizado" }
 ```
-
-**Resposta de sucesso (200):** retorna o comentário atualizado
-
-**Erros possíveis:**
-```json
-{ "message": "Comentário não encontrado" }                    // 404
-{ "message": "Sem permissão para editar este comentário" }    // 403
-```
+Retorna `200` com o comentário atualizado.
 
 ---
 
-#### Deletar comentário
-
-```
-DELETE /comments/:id
-```
-
-**Requer:** token JWT | **Permissão:** dono do comentário ou admin
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Comentário não encontrado" }                   // 404
-{ "message": "Sem permissão para deletar este comentário" }  // 403
-```
+#### `DELETE /comments/:id` — Deletar comentário *(requer auth | dono ou admin)*
+Retorna `204`.
 
 ---
 
 ### Votos
 
-O sistema de votos permite avaliar posts e comentários. Cada usuário pode dar apenas um voto por post ou comentário. O voto atualiza o `score` do post/comentário e o `karma` do autor.
-
-#### Votar em um post
-
-```
-POST /posts/:postId/vote
-```
-
-**Requer:** token JWT
-
-**Body (JSON):**
+#### `POST /posts/:postId/vote` — Votar em post *(requer auth)*
 ```json
 { "value": true }
 ```
-
-- `true` = upvote (positivo)
-- `false` = downvote (negativo)
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }                          // 404
-{ "message": "Não é permitido votar no próprio post" }        // 403
-```
+`true` = upvote, `false` = downvote. Retorna `204`. `403` ao votar no próprio post.
 
 ---
 
-#### Remover voto de um post
-
-```
-DELETE /posts/:postId/vote
-```
-
-**Requer:** token JWT
-
-Cancela o voto dado anteriormente e restaura o score.
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Post não encontrado" }   // 404
-{ "message": "Voto não encontrado" }   // 404
-```
+#### `DELETE /posts/:postId/vote` — Remover voto de post *(requer auth)*
+Retorna `204`. `404` se o voto não existir.
 
 ---
 
-#### Votar em um comentário
-
-```
-POST /comments/:commentId/vote
-```
-
-**Requer:** token JWT
-
-**Body (JSON):**
+#### `POST /comments/:commentId/vote` — Votar em comentário *(requer auth)*
 ```json
 { "value": true }
 ```
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Comentário não encontrado" }                          // 404
-{ "message": "Não é permitido votar no próprio comentário" }        // 403
-```
+Retorna `204`. `403` ao votar no próprio comentário.
 
 ---
 
-#### Remover voto de um comentário
-
-```
-DELETE /comments/:commentId/vote
-```
-
-**Requer:** token JWT
-
-**Resposta de sucesso:** `204 No Content` (sem corpo)
-
-**Erros possíveis:**
-```json
-{ "message": "Comentário não encontrado" }  // 404
-{ "message": "Voto não encontrado" }        // 404
-```
+#### `DELETE /comments/:commentId/vote` — Remover voto de comentário *(requer auth)*
+Retorna `204`. `404` se o voto não existir.
 
 ---
 
-## Testando no terminal (PowerShell)
+### Feedbacks *(módulo extra)*
 
-Abra **dois terminais**. No primeiro:
-
-```powershell
-npm run dev
+#### `POST /feedbacks` — Criar feedback *(requer auth)*
+```json
+{ "title": "Sugestão", "description": "Detalhes com mínimo 10 chars" }
 ```
 
-No segundo, execute em sequência:
+#### `GET /feedbacks` — Listar feedbacks *(público)*
+Aceita query `?status=OPEN|IN_PROGRESS|DONE`.
+
+#### `GET /feedbacks/:id` — Buscar feedback *(público)*
+
+#### `PUT /feedbacks/:id` — Atualizar feedback *(requer auth | dono ou admin)*
+Dono pode alterar `title` e `description`. Admin também pode alterar `status`.
+
+#### `DELETE /feedbacks/:id` — Deletar feedback *(requer auth | dono ou admin)*
+
+---
+
+## Formato dos erros
+
+Todos os erros retornam:
+```json
+{ "message": "Descrição do erro" }
+```
+
+| Código | Significado |
+|---|---|
+| `400` | Dados inválidos (validação Zod falhou) |
+| `401` | Não autenticado (token ausente ou inválido) |
+| `403` | Sem permissão para esta ação |
+| `404` | Recurso não encontrado |
+| `409` | Conflito (ex: e-mail já cadastrado) |
+| `500` | Erro interno do servidor |
+
+---
+
+## Exemplos completos no PowerShell
+
+Abra dois terminais. No primeiro: `npm run dev`. No segundo:
 
 ```powershell
 # 1. Criar usuário
@@ -794,33 +366,36 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3333/users `
   -ContentType "application/json" `
   -Body '{"name":"Joao Silva","email":"joao@email.com","password":"123456"}'
 
-# 2. Login e guardar o token
+# 2. Login e guardar token
 $token = (Invoke-RestMethod -Method Post -Uri http://localhost:3333/login `
   -ContentType "application/json" `
   -Body '{"email":"joao@email.com","password":"123456"}').token
 
-# 3. Criar feedback
-$fb = Invoke-RestMethod -Method Post -Uri http://localhost:3333/feedbacks `
-  -ContentType "application/json" `
-  -Headers @{ Authorization = "Bearer $token" } `
-  -Body '{"title":"Minha sugestao","description":"Seria otimo ter esse recurso"}'
+# 3. Ver próprio perfil com karma
+Invoke-RestMethod -Uri http://localhost:3333/users/me `
+  -Headers @{ Authorization = "Bearer $token" }
 
-# 4. Listar feedbacks (rota pública)
-Invoke-RestMethod http://localhost:3333/feedbacks
-
-# 5. Criar post
+# 4. Criar post
 $post = Invoke-RestMethod -Method Post -Uri http://localhost:3333/posts `
   -ContentType "application/json" `
   -Headers @{ Authorization = "Bearer $token" } `
-  -Body '{"title":"Meu post","content":"Conteudo detalhado do meu primeiro post aqui"}'
+  -Body '{"title":"Meu primeiro post","content":"Conteudo detalhado do meu primeiro post aqui"}'
 
-# 6. Comentar no post
-$comment = Invoke-RestMethod -Method Post -Uri "http://localhost:3333/posts/$($post.id)/comments" `
+# 5. Listar posts
+Invoke-RestMethod -Uri http://localhost:3333/posts `
+  -Headers @{ Authorization = "Bearer $token" }
+
+# 6. Ver detalhes do post com comentários
+Invoke-RestMethod -Uri "http://localhost:3333/posts/$($post.id)" `
+  -Headers @{ Authorization = "Bearer $token" }
+
+# 7. Editar post
+Invoke-RestMethod -Method Put -Uri "http://localhost:3333/posts/$($post.id)" `
   -ContentType "application/json" `
   -Headers @{ Authorization = "Bearer $token" } `
-  -Body '{"content":"Que post interessante!"}'
+  -Body '{"title":"Titulo editado pelo autor"}'
 
-# 7. Criar segundo usuário para votar
+# 8. Criar segundo usuário para votar e comentar
 Invoke-RestMethod -Method Post -Uri http://localhost:3333/users `
   -ContentType "application/json" `
   -Body '{"name":"Maria","email":"maria@email.com","password":"123456"}'
@@ -829,90 +404,107 @@ $token2 = (Invoke-RestMethod -Method Post -Uri http://localhost:3333/login `
   -ContentType "application/json" `
   -Body '{"email":"maria@email.com","password":"123456"}').token
 
-# 8. Votar no post (upvote)
+# 9. Comentar no post (como Maria)
+$comment = Invoke-RestMethod -Method Post -Uri "http://localhost:3333/posts/$($post.id)/comments" `
+  -ContentType "application/json" `
+  -Headers @{ Authorization = "Bearer $token2" } `
+  -Body '{"content":"Otimo post, concordo com tudo!"}'
+
+# 10. Listar comentários do post
+Invoke-RestMethod -Uri "http://localhost:3333/posts/$($post.id)/comments" `
+  -Headers @{ Authorization = "Bearer $token" }
+
+# 11. Editar comentário (como Maria, dona do comentário)
+Invoke-RestMethod -Method Put -Uri "http://localhost:3333/comments/$($comment.id)" `
+  -ContentType "application/json" `
+  -Headers @{ Authorization = "Bearer $token2" } `
+  -Body '{"content":"Comentario editado com mais detalhes"}'
+
+# 12. Votar no post de Joao (Maria dá upvote)
 Invoke-RestMethod -Method Post -Uri "http://localhost:3333/posts/$($post.id)/vote" `
   -ContentType "application/json" `
   -Headers @{ Authorization = "Bearer $token2" } `
   -Body '{"value":true}'
 
-# 9. Votar no comentário (upvote)
+# 13. Votar no comentário de Maria (Joao dá upvote)
 Invoke-RestMethod -Method Post -Uri "http://localhost:3333/comments/$($comment.id)/vote" `
   -ContentType "application/json" `
-  -Headers @{ Authorization = "Bearer $token2" } `
+  -Headers @{ Authorization = "Bearer $token" } `
   -Body '{"value":true}'
 
-# 10. Ver o post com comentários e score atualizado
-Invoke-RestMethod -Method Get -Uri "http://localhost:3333/posts/$($post.id)" `
+# 14. Testar bloqueio: Joao tenta votar no próprio post → deve retornar 403
+try {
+  Invoke-RestMethod -Method Post -Uri "http://localhost:3333/posts/$($post.id)/vote" `
+    -ContentType "application/json" `
+    -Headers @{ Authorization = "Bearer $token" } `
+    -Body '{"value":true}'
+} catch { $_.Exception.Response.StatusCode }
+
+# 15. Ver karma atualizado de Joao (deve ser >= 1)
+Invoke-RestMethod -Uri http://localhost:3333/users/me `
   -Headers @{ Authorization = "Bearer $token" }
 
-# 11. Ver karma do usuário 1 (deve ser 2: 1 do post + 1 do comentário)
-Invoke-RestMethod -Method Get -Uri http://localhost:3333/users `
+# 16. Deletar comentário como autora (Maria)
+Invoke-RestMethod -Method Delete -Uri "http://localhost:3333/comments/$($comment.id)" `
+  -Headers @{ Authorization = "Bearer $token2" }
+
+# 17. Deletar post como autor (Joao)
+Invoke-RestMethod -Method Delete -Uri "http://localhost:3333/posts/$($post.id)" `
   -Headers @{ Authorization = "Bearer $token" }
+
+# --- Fluxo de ADMIN ---
+
+# 18. Promover Maria a admin (precisa de um admin existente — ajuste o token abaixo)
+# Primeiro crie um admin direto no banco via: npx prisma studio
+# Depois faça login como admin e guarde $tokenAdmin
+
+# 19. Admin muda role de Maria para ADMIN
+$mariaId = ((Invoke-RestMethod -Uri http://localhost:3333/users `
+  -Headers @{ Authorization = "Bearer $tokenAdmin" }) | Where-Object { $_.email -eq "maria@email.com" }).id
+
+Invoke-RestMethod -Method Patch -Uri "http://localhost:3333/users/$mariaId/role" `
+  -ContentType "application/json" `
+  -Headers @{ Authorization = "Bearer $tokenAdmin" } `
+  -Body '{"role":"ADMIN"}'
+
+# 20. Admin deleta post de outro usuário
+Invoke-RestMethod -Method Delete -Uri "http://localhost:3333/posts/$($post.id)" `
+  -Headers @{ Authorization = "Bearer $tokenAdmin" }
+
+# 21. Admin deleta comentário de outro usuário
+Invoke-RestMethod -Method Delete -Uri "http://localhost:3333/comments/$($comment.id)" `
+  -Headers @{ Authorization = "Bearer $tokenAdmin" }
 ```
 
 ---
 
-## Formato dos erros
+## Resumo de todas as rotas
 
-Todos os erros seguem o mesmo formato:
-
-```json
-{ "message": "Descrição do erro aqui" }
-```
-
-| Código HTTP | Significado |
-|---|---|
-| `400` | Dados inválidos (validação falhou) |
-| `401` | Não autenticado (token ausente ou inválido) |
-| `403` | Sem permissão para esta ação |
-| `404` | Recurso não encontrado |
-| `409` | Conflito (ex: email já cadastrado) |
-| `500` | Erro interno do servidor |
-
----
-
-## Fluxo completo resumido
-
-```
-Usuário cria conta  →  faz login  →  recebe token
-      ↓
-Usa o token para criar feedbacks e posts
-      ↓
-Qualquer usuário autenticado pode ver posts e comentar
-      ↓
-Outros usuários votam nos posts e comentários
-      ↓
-O score do post/comentário sobe ou desce
-O karma do autor é atualizado automaticamente
-      ↓
-Só o dono (ou admin) pode editar ou deletar seus recursos
-Só admin pode mudar o status dos feedbacks
-```
-
-## Resumo das rotas
-
-| Método | Rota | Auth | Descrição |
+| Método | Rota | Auth | Permissão |
 |---|---|---|---|
-| `POST` | `/users` | Não | Criar conta |
-| `POST` | `/login` | Não | Fazer login |
-| `GET` | `/users` | Sim | Listar usuários |
-| `GET` | `/users/:id` | Sim | Buscar usuário |
-| `PUT` | `/users/:id` | Sim (dono/admin) | Atualizar usuário |
-| `DELETE` | `/users/:id` | Sim (dono/admin) | Deletar usuário |
-| `POST` | `/feedbacks` | Sim | Criar feedback |
-| `GET` | `/feedbacks` | Não | Listar feedbacks |
-| `GET` | `/feedbacks/:id` | Não | Buscar feedback |
-| `PUT` | `/feedbacks/:id` | Sim (dono/admin) | Atualizar feedback |
-| `DELETE` | `/feedbacks/:id` | Sim (dono/admin) | Deletar feedback |
-| `POST` | `/posts` | Sim | Criar post |
-| `GET` | `/posts` | Sim | Listar posts |
-| `GET` | `/posts/:id` | Sim | Buscar post (com comentários) |
-| `PUT` | `/posts/:id` | Sim (dono/admin) | Atualizar post |
-| `DELETE` | `/posts/:id` | Sim (dono/admin) | Deletar post |
-| `POST` | `/posts/:postId/comments` | Sim | Criar comentário |
-| `PUT` | `/comments/:id` | Sim (dono/admin) | Atualizar comentário |
-| `DELETE` | `/comments/:id` | Sim (dono/admin) | Deletar comentário |
-| `POST` | `/posts/:postId/vote` | Sim | Votar em post |
-| `DELETE` | `/posts/:postId/vote` | Sim | Remover voto de post |
-| `POST` | `/comments/:commentId/vote` | Sim | Votar em comentário |
-| `DELETE` | `/comments/:commentId/vote` | Sim | Remover voto de comentário |
+| `POST` | `/users` | Não | — |
+| `POST` | `/login` | Não | — |
+| `GET` | `/users/me` | Sim | Próprio |
+| `GET` | `/users` | Sim | Qualquer autenticado |
+| `GET` | `/users/:id` | Sim | Qualquer autenticado |
+| `PUT` | `/users/:id` | Sim | Dono ou admin |
+| `PATCH` | `/users/:id/role` | Sim | Somente admin |
+| `DELETE` | `/users/:id` | Sim | Dono ou admin |
+| `POST` | `/posts` | Sim | Qualquer autenticado |
+| `GET` | `/posts` | Sim | Qualquer autenticado |
+| `GET` | `/posts/:id` | Sim | Qualquer autenticado |
+| `GET` | `/posts/:postId/comments` | Sim | Qualquer autenticado |
+| `PUT` | `/posts/:id` | Sim | Dono ou admin |
+| `DELETE` | `/posts/:id` | Sim | Dono ou admin |
+| `POST` | `/posts/:postId/comments` | Sim | Qualquer autenticado |
+| `PUT` | `/comments/:id` | Sim | Dono ou admin |
+| `DELETE` | `/comments/:id` | Sim | Dono ou admin |
+| `POST` | `/posts/:postId/vote` | Sim | Qualquer autenticado (exceto dono) |
+| `DELETE` | `/posts/:postId/vote` | Sim | Quem votou |
+| `POST` | `/comments/:commentId/vote` | Sim | Qualquer autenticado (exceto dono) |
+| `DELETE` | `/comments/:commentId/vote` | Sim | Quem votou |
+| `POST` | `/feedbacks` | Sim | Qualquer autenticado |
+| `GET` | `/feedbacks` | Não | — |
+| `GET` | `/feedbacks/:id` | Não | — |
+| `PUT` | `/feedbacks/:id` | Sim | Dono ou admin |
+| `DELETE` | `/feedbacks/:id` | Sim | Dono ou admin |

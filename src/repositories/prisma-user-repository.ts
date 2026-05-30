@@ -1,7 +1,7 @@
 import type { User } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
-import { UserRole } from '../enums/user-role';
+import type { UserRole } from '../enums/user-role';
 import {
   type CreateUserRepositoryInput,
   type UpdateUserRepositoryInput,

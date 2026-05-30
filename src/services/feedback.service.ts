@@ -1,7 +1,11 @@
 import type { FeedbackStatus } from '@prisma/client';
 
 import { UserRole } from '../enums/user-role';
-import type { FeedbackRecord, FeedbackRepository } from '../repositories/feedback-repository';
+import type {
+  FeedbackRecord,
+  FeedbackRepository,
+  UpdateFeedbackRepositoryInput
+} from '../repositories/feedback-repository';
 import { ForbiddenError, NotFoundError } from '../utils/app-error';
 
 export interface CreateFeedbackInput {
@@ -54,7 +58,7 @@ export class FeedbackService {
       throw new ForbiddenError('Apenas administradores podem alterar o status');
     }
 
-    const updateData: import('../repositories/feedback-repository').UpdateFeedbackRepositoryInput = {};
+    const updateData: UpdateFeedbackRepositoryInput = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.status !== undefined) updateData.status = data.status;

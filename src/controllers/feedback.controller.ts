@@ -3,7 +3,7 @@ import type { FeedbackStatus } from '@prisma/client';
 
 import { createFeedbackSchema } from '../schemas/create-feedback.schema';
 import { updateFeedbackSchema } from '../schemas/update-feedback.schema';
-import type { FeedbackService } from '../services/feedback.service';
+import type { FeedbackService, UpdateFeedbackInput } from '../services/feedback.service';
 
 export function feedbackController(service: FeedbackService) {
   return {
@@ -43,7 +43,7 @@ export function feedbackController(service: FeedbackService) {
     ): Promise<FastifyReply> => {
       const { id } = request.params as { id: string };
       const parsed = updateFeedbackSchema.parse(request.body);
-      const payload: import('../services/feedback.service').UpdateFeedbackInput = {
+      const payload: UpdateFeedbackInput = {
         requesterId: request.user.sub,
         requesterRole: request.user.role
       };

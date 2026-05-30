@@ -173,9 +173,11 @@ describe('Comments routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json();
+    const body = z
+      .object({ comments: z.array(z.object({ content: z.string() })) })
+      .parse(response.json());
     expect(body.comments).toHaveLength(1);
-    expect(body.comments[0].content).toBe('Comentário que deve aparecer no post');
+    expect(body.comments[0]?.content).toBe('Comentário que deve aparecer no post');
   });
 
   it('owner can update comment', async () => {
